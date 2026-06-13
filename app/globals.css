@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #13202E;
+
+  /* Zigma brand tokens */
+  --color-navy: #0A2A4A;
+  --color-steel: #1E5C8C;
+  --color-amber: #E8A33D;
+  --color-mist: #F5F7FA;
+  --color-ink: #13202E;
+  --color-line: #E2E8F0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-navy: var(--color-navy);
+  --color-steel: var(--color-steel);
+  --color-amber: var(--color-amber);
+  --color-mist: var(--color-mist);
+  --color-ink: var(--color-ink);
+  --color-line: var(--color-line);
+  --font-display: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Helvetica Neue", Arial, "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", "Consolas", "Liberation Mono", monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-tag {
+  font-family: var(--font-mono);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
