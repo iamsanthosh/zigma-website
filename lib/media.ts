@@ -5,7 +5,9 @@
  * Includes caching to minimize DB queries.
  */
 
-import { supabase } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
+
+const supabase = createClient();
 import { getFallbackMedia, FallbackMedia } from '@/lib/fallback-media';
 
 export interface MediaDisplayOptions {
@@ -40,6 +42,15 @@ function bytestoDataUrl(bytes: Uint8Array, mimeType: string): string {
 }
 
 /**
+ * Normalize Supabase joined media responses which may be returned
+ * as an object or a single-element array depending on the relationship.
+ */
+function normalizeMedia(media: any): any | undefined {
+  if (media == null) return undefined;
+  return Array.isArray(media) ? media[0] : media;
+}
+
+/**
  * Get company logo with fallback
  */
 export async function getCompanyLogo(
@@ -63,17 +74,19 @@ export async function getCompanyLogo(
       .single();
 
     if (data?.media && !error) {
-      const media = data.media;
-      const mediaData: MediaData = {
-        id: media.id,
-        dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
-        mimeType: media.mime_type,
-        altText: media.alt_text || `Zigma ${logoType} logo`,
-        urlFallback: media.url_fallback,
-        source: 'db',
-      };
-      mediaCache[cacheKey] = mediaData;
-      return mediaData;
+      const media = normalizeMedia(data.media);
+      if (media) {
+        const mediaData: MediaData = {
+          id: media.id,
+          dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
+          mimeType: media.mime_type,
+          altText: media.alt_text || `Zigma ${logoType} logo`,
+          urlFallback: media.url_fallback,
+          source: 'db',
+        };
+        mediaCache[cacheKey] = mediaData;
+        return mediaData;
+      }
     }
   } catch (error) {
     console.warn(`Failed to fetch logo from DB: ${error}`);
@@ -117,17 +130,19 @@ export async function getHeroMedia(
       .single();
 
     if (data?.media && !error) {
-      const media = data.media;
-      const mediaData: MediaData = {
-        id: media.id,
-        dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
-        mimeType: media.mime_type,
-        altText: media.alt_text || sectionKey,
-        urlFallback: media.url_fallback,
-        source: 'db',
-      };
-      mediaCache[cacheKey] = mediaData;
-      return mediaData;
+      const media = normalizeMedia(data.media);
+      if (media) {
+        const mediaData: MediaData = {
+          id: media.id,
+          dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
+          mimeType: media.mime_type,
+          altText: media.alt_text || sectionKey,
+          urlFallback: media.url_fallback,
+          source: 'db',
+        };
+        mediaCache[cacheKey] = mediaData;
+        return mediaData;
+      }
     }
   } catch (error) {
     console.warn(`Failed to fetch hero media from DB: ${error}`);
@@ -183,7 +198,7 @@ export async function getDivisionMedia(
 
     if (data && !error && data.length > 0) {
       const mediaList = data.map((item: any) => {
-        const media = item.media;
+        const media = normalizeMedia(item.media) ?? item.media;
         return {
           id: media.id,
           dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
@@ -253,7 +268,7 @@ export async function getProductImages(
 
     if (data && !error && data.length > 0) {
       const mediaList = data.map((item: any) => {
-        const media = item.media;
+        const media = normalizeMedia(item.media) ?? item.media;
         return {
           id: media.id,
           dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
