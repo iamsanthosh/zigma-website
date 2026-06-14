@@ -5,10 +5,32 @@
  * Includes caching to minimize DB queries.
  */
 
-import { createClient } from '@/lib/supabase/client';
-
-const supabase = createClient();
 import { getFallbackMedia, FallbackMedia } from '@/lib/fallback-media';
+
+/**
+ * Resolve an appropriate Supabase client depending on runtime.
+ * - Server (SSR/SSG): use server client (handles cookies)
+ * - Client (browser): use browser client
+ */
+async function getSupabaseClient() {
+  // If not configured, avoid importing Supabase server/browser helpers which
+  // may rely on next/headers and cause build-time issues in environments
+  // where keys are absent (e.g., preview or sandbox).
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return null;
+  }
+
+  if (typeof window === 'undefined') {
+    const serverPath = '@/lib/supabase' + '/server';
+    const mod = await import(serverPath);
+    return await mod.createClient();
+  } else {
+    const clientPath = '@/lib/supabase' + '/client';
+    const mod = await import(clientPath);
+    return mod.createClient();
+  }
+}
+
 
 export interface MediaDisplayOptions {
   type: 'logo' | 'product' | 'division' | 'marketing' | 'hero';
@@ -66,26 +88,29 @@ export async function getCompanyLogo(
 
   try {
     // Try to fetch from DB
-    const { data, error } = await supabase
-      .from('company_logos')
-      .select('media:media_id(*)')
-      .eq('logo_type', logoType)
-      .eq('is_current', true)
-      .single();
+    const supabase = await getSupabaseClient();
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('company_logos')
+        .select('media:media_id(*)')
+        .eq('logo_type', logoType)
+        .eq('is_current', true)
+        .single();
 
-    if (data?.media && !error) {
-      const media = normalizeMedia(data.media);
-      if (media) {
-        const mediaData: MediaData = {
-          id: media.id,
-          dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
-          mimeType: media.mime_type,
-          altText: media.alt_text || `Zigma ${logoType} logo`,
-          urlFallback: media.url_fallback,
-          source: 'db',
-        };
-        mediaCache[cacheKey] = mediaData;
-        return mediaData;
+      if (data?.media && !error) {
+        const media = normalizeMedia(data.media);
+        if (media) {
+          const mediaData: MediaData = {
+            id: media.id,
+            dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
+            mimeType: media.mime_type,
+            altText: media.alt_text || `Zigma ${logoType} logo`,
+            urlFallback: media.url_fallback,
+            source: 'db',
+          };
+          mediaCache[cacheKey] = mediaData;
+          return mediaData;
+        }
       }
     }
   } catch (error) {
@@ -121,27 +146,30 @@ export async function getHeroMedia(
   }
 
   try {
-    const { data, error } = await supabase
-      .from('marketing_media')
-      .select('media:media_id(*)')
-      .eq('section_key', sectionKey)
-      .order('display_order')
-      .limit(1)
-      .single();
+    const supabase = await getSupabaseClient();
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('marketing_media')
+        .select('media:media_id(*)')
+        .eq('section_key', sectionKey)
+        .order('display_order')
+        .limit(1)
+        .single();
 
-    if (data?.media && !error) {
-      const media = normalizeMedia(data.media);
-      if (media) {
-        const mediaData: MediaData = {
-          id: media.id,
-          dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
-          mimeType: media.mime_type,
-          altText: media.alt_text || sectionKey,
-          urlFallback: media.url_fallback,
-          source: 'db',
-        };
-        mediaCache[cacheKey] = mediaData;
-        return mediaData;
+      if (data?.media && !error) {
+        const media = normalizeMedia(data.media);
+        if (media) {
+          const mediaData: MediaData = {
+            id: media.id,
+            dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
+            mimeType: media.mime_type,
+            altText: media.alt_text || sectionKey,
+            urlFallback: media.url_fallback,
+            source: 'db',
+          };
+          mediaCache[cacheKey] = mediaData;
+          return mediaData;
+        }
       }
     }
   } catch (error) {
@@ -179,36 +207,39 @@ export async function getDivisionMedia(
   }
 
   try {
-    // Get vertical ID
-    const { data: vertical } = await supabase
-      .from('verticals')
-      .select('id')
-      .eq('slug', verticalSlug)
-      .single();
+    const supabase = await getSupabaseClient();
+    if (supabase) {
+      // Get vertical ID
+      const { data: vertical } = await supabase
+        .from('verticals')
+        .select('id')
+        .eq('slug', verticalSlug)
+        .single();
 
-    if (!vertical) throw new Error('Vertical not found');
+      if (!vertical) throw new Error('Vertical not found');
 
-    // Get division media
-    const { data, error } = await supabase
-      .from('division_media')
-      .select('media:media_id(*)')
-      .eq('vertical_id', vertical.id)
-      .eq('media_position', position)
-      .order('display_order');
+      // Get division media
+      const { data, error } = await supabase
+        .from('division_media')
+        .select('media:media_id(*)')
+        .eq('vertical_id', vertical.id)
+        .eq('media_position', position)
+        .order('display_order');
 
-    if (data && !error && data.length > 0) {
-      const mediaList = data.map((item: any) => {
-        const media = normalizeMedia(item.media) ?? item.media;
-        return {
-          id: media.id,
-          dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
-          mimeType: media.mime_type,
-          altText: media.alt_text || verticalSlug,
-          urlFallback: media.url_fallback,
-          source: 'db' as const,
-        };
-      });
-      return mediaList;
+      if (data && !error && data.length > 0) {
+        const mediaList = data.map((item: any) => {
+          const media = normalizeMedia(item.media) ?? item.media;
+          return {
+            id: media.id,
+            dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
+            mimeType: media.mime_type,
+            altText: media.alt_text || verticalSlug,
+            urlFallback: media.url_fallback,
+            source: 'db' as const,
+          };
+        });
+        return mediaList;
+      }
     }
   } catch (error) {
     console.warn(`Failed to fetch division media from DB: ${error}`);
@@ -245,40 +276,43 @@ export async function getProductImages(
   }
 
   try {
-    // Get product ID
-    const { data: product } = await supabase
-      .from('products')
-      .select('id')
-      .eq('slug', productSlug)
-      .single();
+    const supabase = await getSupabaseClient();
+    if (supabase) {
+      // Get product ID
+      const { data: product } = await supabase
+        .from('products')
+        .select('id')
+        .eq('slug', productSlug)
+        .single();
 
-    if (!product) throw new Error('Product not found');
+      if (!product) throw new Error('Product not found');
 
-    // Build query
-    let query = supabase
-      .from('product_images')
-      .select('media:media_id(*)')
-      .eq('product_id', product.id);
+      // Build query
+      let query = supabase
+        .from('product_images')
+        .select('media:media_id(*)')
+        .eq('product_id', product.id);
 
-    if (options?.featured) {
-      query = query.eq('is_featured', true);
-    }
+      if (options?.featured) {
+        query = query.eq('is_featured', true);
+      }
 
-    const { data, error } = await query.order('display_order');
+      const { data, error } = await query.order('display_order');
 
-    if (data && !error && data.length > 0) {
-      const mediaList = data.map((item: any) => {
-        const media = normalizeMedia(item.media) ?? item.media;
-        return {
-          id: media.id,
-          dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
-          mimeType: media.mime_type,
-          altText: media.alt_text || productSlug,
-          urlFallback: media.url_fallback,
-          source: 'db' as const,
-        };
-      });
-      return mediaList;
+      if (data && !error && data.length > 0) {
+        const mediaList = data.map((item: any) => {
+          const media = normalizeMedia(item.media) ?? item.media;
+          return {
+            id: media.id,
+            dataUrl: bytestoDataUrl(new Uint8Array(media.file_data), media.mime_type),
+            mimeType: media.mime_type,
+            altText: media.alt_text || productSlug,
+            urlFallback: media.url_fallback,
+            source: 'db' as const,
+          };
+        });
+        return mediaList;
+      }
     }
   } catch (error) {
     console.warn(`Failed to fetch product images from DB: ${error}`);
