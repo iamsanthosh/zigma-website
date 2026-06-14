@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getHeroMedia, getCompanyLogo, MediaData } from '@/lib/media';
 import { MediaDisplay, LogoDisplay } from '@/components/MediaDisplay';
-import { useLabel } from '@/lib/LabelProvider';
+import { useLabel, useLabels } from '@/lib/LabelProvider';
 import { ChevronRight } from 'lucide-react';
 
 export function HeroWithMedia() {
@@ -11,10 +11,10 @@ export function HeroWithMedia() {
   const [logoData, setLogoData] = useState<MediaData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const {
-    getLabel,
-    labels: { 'home.hero.eyebrow': eyebrow, 'home.hero.title': title, 'home.hero.subtitle': subtitle },
-  } = useLabel();
+  const labels = useLabels();
+  const eyebrow = labels['home.hero.eyebrow'];
+  const title = labels['home.hero.title'];
+  const subtitle = labels['home.hero.subtitle'];
 
   useEffect(() => {
     async function loadMedia() {
@@ -83,12 +83,12 @@ export function HeroWithMedia() {
         {/* CTA Buttons */}
         <div className="flex flex-wrap gap-4 mt-8">
           <button className="flex items-center gap-2 px-8 py-4 bg-amber text-navy font-semibold rounded hover:shadow-lg transition duration-300 transform hover:scale-105">
-            {getLabel('home.hero.cta_primary', 'Explore Solutions')}
+            {useLabel('home.hero.cta_primary', 'Explore Solutions')}
             <ChevronRight className="w-4 h-4" />
           </button>
 
           <button className="flex items-center gap-2 px-8 py-4 bg-transparent border-2 border-white text-white font-semibold rounded hover:bg-white hover:text-navy transition duration-300">
-            {getLabel('home.hero.cta_secondary', 'Talk to an Expert')}
+            {useLabel('home.hero.cta_secondary', 'Talk to an Expert')}
           </button>
         </div>
       </div>
